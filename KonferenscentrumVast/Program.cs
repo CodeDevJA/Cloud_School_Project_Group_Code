@@ -1,31 +1,46 @@
 ﻿using KonferenscentrumVast.Data;
 using KonferenscentrumVast.Repository.Implementations;
 using KonferenscentrumVast.Repository.Interfaces;
-using KonferenscentrumVast.Services;  
-using KonferenscentrumVast.Exceptions;       
+using KonferenscentrumVast.Services;
+using KonferenscentrumVast.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add Application Insights
+builder.Services.AddApplicationInsightsTelemetry(builder.Configuration);
 
-// Controllers + JSON (optional: guard against reference loops if any entity slips through)
-builder.Services.AddControllers();
+// Controllers + JSON
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = null;
+    });
 
 // Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Konferenscentrum Väst API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { 
+        Title = "Konferenscentrum Väst API", 
+        Version = "v1",
+        Description = "API for Konferenscentrum Väst AB - Conference Room Booking System"
+    });
 
+    // Map special types for better Swagger documentation
     c.MapType<IFormFile>(() => new OpenApiSchema { Type = "string", Format = "binary" });
     c.MapType<DateOnly>(() => new OpenApiSchema { Type = "string", Format = "date" });
     c.MapType<TimeOnly>(() => new OpenApiSchema { Type = "string", Format = "time" });
 
+    // Include XML comments for better documentation
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    c.IncludeXmlComments(xmlPath);
+    if (File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath);
+    }
 });
 
 // Repositories
@@ -40,38 +55,78 @@ builder.Services.AddScoped<FacilityService>();
 builder.Services.AddScoped<BookingContractService>();
 builder.Services.AddScoped<CustomerService>();
 
-// Database
+// Database - UPPDATERAD med rätt connection string namn
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection_Psql")));
 
+// CORS - UPPDATERAD för att fungera med alla frontends
 builder.Services.AddCors(opt =>
 {
-    opt.AddPolicy("dev", policy =>
+    opt.AddPolicy("AllowFrontend", policy =>
     {
         policy
-            .WithOrigins("http://localhost:3000", "http://localhost:5173")
+            .WithOrigins(
+                "http://localhost:3000",    // Next.js dev
+                "http://localhost:5173",    // Vite dev
+                "https://localhost:3000",   // Next.js dev (HTTPS)
+                "https://localhost:5173"    // Vite dev (HTTPS)
+            )
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+
+    opt.AddPolicy("AllowProduction", policy =>
+    {
+        policy
+            .WithOrigins(
+                "https://*.vercel.app",     // Alla Vercel-domäner
+                "https://*.now.sh"          // Äldre Vercel-domäner
+            )
+            .SetIsOriginAllowedToAllowWildcardSubdomains()
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
 var app = builder.Build();
 
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage(); // add this
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Konferenscentrum Väst API v1");
+        c.RoutePrefix = "swagger"; // Access at /swagger
+    });
+    
+    // Use development CORS
+    app.UseCors("AllowFrontend");
+}
+else
+{
+    // In production, use production CORS
+    app.UseCors("AllowProduction");
+    
+    // Still enable Swagger in production for testing (optional)
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Konferenscentrum Väst API v1");
+        c.RoutePrefix = "api/docs"; // More secure path in production
+    });
 }
 
-app.UseSwagger();
-app.UseSwaggerUI(); // optional: c => { c.RoutePrefix = string.Empty; }
-
-
-
-app.UseExceptionMapping();    // our custom exception -> HTTP mapping
+app.UseExceptionMapping();    // Custom exception -> HTTP mapping
 app.UseHttpsRedirection();
-app.UseCors("dev");           // remove or change if not needed
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Health check endpoint for Azure and monitoring
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow }));
 
 app.Run();
