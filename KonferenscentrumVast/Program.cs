@@ -42,36 +42,56 @@ builder.Services.AddScoped<CustomerService>();
 
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection_Psql")));
 
 builder.Services.AddCors(opt =>
 {
     opt.AddPolicy("dev", policy =>
     {
         policy
-            .WithOrigins("http://localhost:3000", "http://localhost:5173")
+            .AllowAnyOrigin()
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
+    
+    // Add for production
+    opt.AddDefaultPolicy(policy =>
+    {
+        policy
+              .AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
 
+// In app configuration
+
+
+builder.Services.AddApplicationInsightsTelemetry();
+
 var app = builder.Build();
+
+app.MapGet("/", () => "Konferenscentrum Väst API is running");
 
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage(); // add this
 }
 
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("dev");
+}
+else
+{
+    app.UseCors(); // Uses default policy
+}
+
 app.UseSwagger();
-app.UseSwaggerUI(); // optional: c => { c.RoutePrefix = string.Empty; }
-
-
-
-app.UseExceptionMapping();    // our custom exception -> HTTP mapping
+app.UseSwaggerUI(); 
+app.UseExceptionMapping();   
+app.UseCors("dev");
 app.UseHttpsRedirection();
-app.UseCors("dev");           // remove or change if not needed
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();

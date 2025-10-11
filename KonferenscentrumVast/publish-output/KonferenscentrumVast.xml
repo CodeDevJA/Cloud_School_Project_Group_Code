@@ -1,0 +1,650 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KonferenscentrumVast</name>
+    </assembly>
+    <members>
+        <member name="T:KonferenscentrumVast.Controllers.BookingContractController">
+            <summary>
+            API controller for managing booking contracts.
+            Handles contract lifecycle from creation through signing or cancellation.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.GetById(System.Int32)">
+            <summary>
+            Retrieves a specific contract by ID
+            </summary>
+            <param name="id">Contract ID</param>
+            <returns>Contract details</returns>
+            <response code="200">Returns the contract</response>
+            <response code="404">Contract not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.GetAll">
+            <summary>
+            Retrieves all contracts in the system
+            </summary>
+            <returns>List of all contracts</returns>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.GetByBookingId(System.Int32)">
+            <summary>
+            Retrieves the contract associated with a specific booking
+            </summary>
+            <param name="bookingId">Booking ID</param>
+            <returns>Contract for the booking</returns>
+            <response code="200">Returns the contract</response>
+            <response code="404">Contract not found for booking</response>
+        </member>
+        <!-- Badly formed XML comment ignored for member "M:KonferenscentrumVast.Controllers.BookingContractController.CreateContract(System.Int32,KonferenscentrumVast.DTO.BookingContractCreateDto)" -->
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.Patch(System.Int32,KonferenscentrumVast.DTO.BookingContractPatchDto)">
+            <summary>
+            Updates contract terms, amount, or payment due date
+            </summary>
+            <param name="id">Contract ID</param>
+            <param name="dto">Contract updates</param>
+            <returns>Updated contract</returns>
+            <response code="200">Contract updated successfully</response>
+            <response code="400">Cannot modify signed or cancelled contract</response>
+            <response code="404">Contract not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.MarkSent(System.Int32)">
+            <summary>
+            Marks contract as sent to customer
+            </summary>
+            <param name="id">Contract ID</param>
+            <returns>Updated contract with Sent status</returns>
+            <response code="200">Contract marked as sent</response>
+            <response code="400">Booking must be confirmed first</response>
+            <response code="404">Contract not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.MarkSigned(System.Int32)">
+            <summary>
+            Records contract signature
+            </summary>
+            <param name="id">Contract ID</param>
+            <returns>Updated contract with Signed status</returns>
+            <response code="200">Contract marked as signed</response>
+            <response code="400">Booking must be confirmed first</response>
+            <response code="404">Contract not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.Cancel(System.Int32,System.String)">
+            <summary>
+            Cancels a contract with optional reason
+            </summary>
+            <param name="id">Contract ID</param>
+            <param name="reason">Cancellation reason</param>
+            <returns>Cancelled contract</returns>
+            <response code="200">Contract cancelled</response>
+            <response code="404">Contract not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingContractController.ToDto(KonferenscentrumVast.Models.BookingContract)">
+            <summary>
+            Converts domain model to response DTO with flattened data for API consumers
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Controllers.BookingController">
+            <summary>
+            API controller for managing facility bookings.
+            Handles booking creation, confirmation, rescheduling, and cancellation with availability checking.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.GetById(System.Int32)">
+            <summary>
+            Retrieves a specific booking by ID
+            </summary>
+            <param name="id">Booking ID</param>
+            <returns>Booking details including customer, facility, and contract information</returns>
+            <response code="200">Returns the booking</response>
+            <response code="404">Booking not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.GetAll">
+            <summary>
+            Retrieves all bookings in the system
+            </summary>
+            <returns>List of all bookings</returns>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.GetFiltered(System.Nullable{System.Int32},System.Nullable{System.Int32},System.Nullable{System.DateTime},System.Nullable{System.DateTime})">
+            <summary>
+            Retrieves bookings filtered by customer, facility, or date range
+            </summary>
+            <param name="customerId">Filter by customer ID</param>
+            <param name="facilityId">Filter by facility ID</param>
+            <param name="from">Start date for date range filter</param>
+            <param name="to">End date for date range filter</param>
+            <returns>Filtered list of bookings</returns>
+            <response code="200">Returns filtered bookings</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.Create(KonferenscentrumVast.DTO.BookingCreateDto)">
+            <summary>
+            Creates a new booking with availability checking and automatic contract generation
+            </summary>
+            <param name="request">Booking details</param>
+            <returns>Created booking</returns>
+            <response code="201">Booking created successfully</response>
+            <response code="400">Invalid booking data or validation failed</response>
+            <response code="404">Customer or facility not found</response>
+            <response code="409">Booking conflict - facility unavailable for specified dates</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.Confirm(System.Int32)">
+            <summary>
+            Confirms a pending booking
+            </summary>
+            <param name="id">Booking ID</param>
+            <returns>Confirmed booking</returns>
+            <response code="200">Booking confirmed</response>
+            <response code="400">Cannot confirm cancelled or past booking</response>
+            <response code="404">Booking not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.Reschedule(System.Int32,KonferenscentrumVast.DTO.BookingRescheduleDto)">
+            <summary>
+            Changes booking dates with availability checking
+            </summary>
+            <param name="id">Booking ID</param>
+            <param name="request">New start and end dates</param>
+            <returns>Rescheduled booking with updated pricing</returns>
+            <response code="200">Booking rescheduled</response>
+            <response code="400">Invalid dates or cancelled booking</response>
+            <response code="404">Booking not found</response>
+            <response code="409">New dates conflict with existing bookings</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.Cancel(System.Int32,KonferenscentrumVast.DTO.BookingCancelDto)">
+            <summary>
+            Cancels a booking with optional reason (idempotent operation)
+            </summary>
+            <param name="id">Booking ID</param>
+            <param name="request">Optional cancellation details</param>
+            <returns>No content</returns>
+            <response code="204">Booking cancelled successfully</response>
+            <response code="404">Booking not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.BookingController.ToDto(KonferenscentrumVast.Models.Booking)">
+            <summary>
+            Converts domain model to response DTO, flattening related entity data for easier consumption
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Controllers.CustomerController">
+            <summary>
+            API controller for managing customers.
+            Handles customer lifecycle operations with email uniqueness enforcement and booking safety checks.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.CustomerController.GetAll">
+            <summary>
+            Retrieves all customers with booking statistics
+            </summary>
+            <returns>List of all customers</returns>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.CustomerController.GetById(System.Int32)">
+            <summary>
+            Retrieves a specific customer by ID
+            </summary>
+            <param name="id">Customer ID</param>
+            <returns>Customer details with booking statistics</returns>
+            <response code="200">Returns the customer</response>
+            <response code="404">Customer not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.CustomerController.GetByEmail(System.String)">
+            <summary>
+            Finds a customer by email address (case-insensitive)
+            </summary>
+            <param name="email">Customer email address</param>
+            <returns>Customer details if found</returns>
+            <response code="200">Returns the customer</response>
+            <response code="400">Email parameter is required</response>
+            <response code="404">Customer not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.CustomerController.Create(KonferenscentrumVast.DTO.CustomerCreateDto)">
+            <summary>
+            Creates a new customer with email uniqueness validation
+            </summary>
+            <param name="dto">Customer details</param>
+            <returns>Created customer</returns>
+            <response code="201">Customer created successfully</response>
+            <response code="400">Invalid customer data or validation failed</response>
+            <response code="409">Customer with email already exists</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.CustomerController.Update(System.Int32,KonferenscentrumVast.DTO.CustomerUpdateDto)">
+            <summary>
+            Updates customer information with email conflict checking
+            </summary>
+            <param name="id">Customer ID</param>
+            <param name="dto">Updated customer details</param>
+            <returns>Updated customer</returns>
+            <response code="200">Customer updated successfully</response>
+            <response code="400">Invalid customer data</response>
+            <response code="404">Customer not found</response>
+            <response code="409">Email already used by another customer</response>
+        </member>
+        <member name="T:KonferenscentrumVast.Controllers.FacilityController">
+            <summary>
+            API controller for managing conference facilities.
+            Provides both administrative facility management and customer-facing active facility queries.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.FacilityController.GetAll">
+            <summary>
+            Retrieves all facilities (including inactive ones for administrative purposes)
+            </summary>
+            <returns>List of all facilities</returns>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.FacilityController.GetActive">
+            <summary>
+            Retrieves only active facilities available for booking
+            </summary>
+            <returns>List of active facilities</returns>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.FacilityController.GetById(System.Int32)">
+            <summary>
+            Retrieves a specific facility by ID
+            </summary>
+            <param name="id">Facility ID</param>
+            <returns>Facility details</returns>
+            <response code="200">Returns the facility</response>
+            <response code="404">Facility not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.FacilityController.Create(KonferenscentrumVast.DTO.FacilityCreateDto)">
+            <summary>
+            Creates a new facility with validation
+            </summary>
+            <param name="dto">Facility details</param>
+            <returns>Created facility</returns>
+            <response code="201">Facility created successfully</response>
+            <response code="400">Invalid facility data or validation failed</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.FacilityController.Update(System.Int32,KonferenscentrumVast.DTO.FacilityUpdateDto)">
+            <summary>
+            Updates facility information
+            </summary>
+            <param name="id">Facility ID</param>
+            <param name="dto">Updated facility details</param>
+            <returns>Updated facility</returns>
+            <response code="200">Facility updated successfully</response>
+            <response code="400">Invalid facility data</response>
+            <response code="404">Facility not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.FacilityController.Delete(System.Int32)">
+            <summary>
+            Permanently deletes a facility
+            </summary>
+            <param name="id">Facility ID</param>
+            <returns>No content</returns>
+            <response code="204">Facility deleted successfully</response>
+            <response code="404">Facility not found</response>
+        </member>
+        <member name="M:KonferenscentrumVast.Controllers.FacilityController.SetActive(System.Int32,KonferenscentrumVast.DTO.FacilitySetActiveDto)">
+            <summary>
+            Toggles facility active status (soft delete functionality)
+            </summary>
+            <param name="id">Facility ID</param>
+            <param name="dto">Active status</param>
+            <returns>Updated facility</returns>
+            <response code="200">Facility status updated</response>
+            <response code="404">Facility not found</response>
+            <remarks>
+            Use this instead of DELETE to preserve historical booking data.
+            Inactive facilities cannot be booked but maintain data integrity.
+            </remarks>
+        </member>
+        <member name="T:KonferenscentrumVast.Exceptions.ConflictException">
+            <summary>
+            Exception thrown when a business rule conflict occurs, such as double-booking a facility.
+            Maps to HTTP 409 Conflict status code in the API response.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Exceptions.ConflictException.BookingConflict(System.DateTime,System.DateTime)">
+            <summary>
+            Creates a standardized booking conflict exception with formatted date range.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Exceptions.ExceptionHandlingMiddleware">
+            <summary>
+            Global exception handling middleware that converts exceptions into standardized HTTP responses.
+            Maps different exception types to appropriate HTTP status codes and returns RFC 7807 Problem Details format.
+            "RFC" just means it's an official internet standard (Request For Comments), and this middleware creates this format automatically
+            This centralizes error handling across the entire API.
+            </summary>
+            <remarks>
+            This middleware intercepts all unhandled exceptions in the request pipeline and:
+            1. Maps exception types to HTTP status codes (ValidationException -> 400, NotFoundException -> 404, etc.)
+            2. Returns consistent JSON error responses following RFC 7807 Problem Details standard
+            3. Includes stack traces only in Development environment for security
+            4. Logs exceptions appropriately (4xx as Warning, 5xx as Error)
+            
+            Benefits of centralized exception handling:
+            - Consistent error responses across all endpoints
+            - Prevents sensitive information leakage in production
+            - Reduces boilerplate try-catch blocks in controllers
+            - Makes API responses predictable for client applications
+            </remarks>
+        </member>
+        <member name="M:KonferenscentrumVast.Exceptions.ExceptionHandlingMiddleware.HandleAsync(Microsoft.AspNetCore.Http.HttpContext,System.Exception)">
+            <summary>
+            Maps exceptions to HTTP status codes and creates RFC 7807 Problem Details responses.
+            Uses pattern matching to determine appropriate HTTP status and error type.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Exceptions.ExceptionHandlingExtensions">
+            <summary>
+            Extension methods for registering the exception handling middleware in the application pipeline.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Exceptions.ExceptionHandlingExtensions.UseExceptionMapping(Microsoft.AspNetCore.Builder.IApplicationBuilder)">
+            <summary>
+            Registers the exception handling middleware. Should be called early in the pipeline
+            to catch exceptions from all subsequent middleware and controllers.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Exceptions.NotFoundException">
+            <summary>
+            Exception thrown when a requested resource cannot be found.
+            Maps to HTTP 404 Not Found status code in the API response.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Exceptions.NotFoundException.ForResource(System.String,System.Object)">
+            <summary>
+            Creates a standardized not found exception with consistent messaging format.
+            Handles both generic resources and resources with specific identifiers.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Exceptions.ValidationException">
+            <summary>
+            Exception thrown when input data fails validation rules.
+            Maps to HTTP 400 Bad Request status code in the API response.
+            Used for business rule violations, invalid formats, and constraint failures.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Migrations.InitialCreate">
+            <inheritdoc />
+        </member>
+        <member name="M:KonferenscentrumVast.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:KonferenscentrumVast.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:KonferenscentrumVast.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:KonferenscentrumVast.Migrations.Refactor_BookingContract_Domain">
+            <inheritdoc />
+        </member>
+        <member name="M:KonferenscentrumVast.Migrations.Refactor_BookingContract_Domain.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:KonferenscentrumVast.Migrations.Refactor_BookingContract_Domain.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:KonferenscentrumVast.Migrations.Refactor_BookingContract_Domain.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:KonferenscentrumVast.Models.Booking">
+            <summary>
+            Represents a facility booking request made by a customer.
+            Goes through different statuses from Pending to Confirmed/Cancelled/Completed.
+            You might want to implement some validation.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Models.BookingStatus">
+            <summary>
+            Defines the different states a booking can be in during its lifecycle
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Models.BookingContract">
+            <summary>
+            Represents a legal contract for a booking. 
+            Automatically created when a booking is made, but can also be created manually if auto-creation fails.
+            Contains snapshot data to preserve contract details even if related entities change.
+            You might want to add some validation...
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Models.ContractStatus">
+            <summary>
+            Defines the different states a contract can be in during its lifecycle
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Models.Customer">
+            <summary>
+            Represents a customer who can make bookings.
+            Can be either an individual or represent a company.
+            You might want to implement some validation...
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Models.Facility">
+            <summary>
+            Represents a bookable conference facility with pricing and capacity information.
+            Can be activated/deactivated without deleting historical booking data.
+            You might want to implement some validation...
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Implementations.BookingContractRepository">
+            <summary>
+            Entity Framework implementation of booking contract repository.
+            Handles contract data persistence with booking relationship management.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Implementations.BookingRepository">
+            <summary>
+            Entity Framework implementation of booking repository.
+            Handles complex date overlap queries for availability checking.
+            </summary>
+        </member>
+        <!-- Badly formed XML comment ignored for member "M:KonferenscentrumVast.Repository.Implementations.BookingRepository.GetByDateRangeAsync(System.DateTime,System.DateTime)" -->
+        <!-- Badly formed XML comment ignored for member "M:KonferenscentrumVast.Repository.Implementations.BookingRepository.HasOverlapAsync(System.Int32,System.DateTime,System.DateTime,KonferenscentrumVast.Models.BookingStatus[])" -->
+        <member name="M:KonferenscentrumVast.Repository.Implementations.BookingRepository.HasOverlapExcludingAsync(System.Int32,System.Int32,System.DateTime,System.DateTime,KonferenscentrumVast.Models.BookingStatus[])">
+            <summary>
+            Checks for booking overlaps while excluding a specific booking (used for rescheduling).
+            Prevents a booking from conflicting with itself during updates.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Implementations.CustomerRepository">
+            <summary>
+            Entity Framework implementation of customer repository.
+            Includes normalized email lookup for case-insensitive searches.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Repository.Implementations.CustomerRepository.GetByEmailAsync(System.String)">
+            <summary>
+            Finds customer by email address using case-insensitive comparison.
+            Normalizes input email to lowercase for consistent matching.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Implementations.FacilityRepository">
+            <summary>
+            Entity Framework implementation of facility repository.
+            Provides both active and all facility queries for different business scenarios.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Repository.Implementations.FacilityRepository.GetActiveAsync">
+            <summary>
+            Retrieves only active facilities that can be booked.
+            Used for customer-facing booking interfaces.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Interfaces.IBookingContractRepository">
+            <summary>
+            Repository interface for managing booking data operations.
+            </summary>
+            <remarks>
+            This interface follows the Repository Pattern, which separates data access logic from business logic.
+            we use interfaces with implementations because:
+            
+            1. TESTABILITY: Allows mocking the repository in unit tests without requiring a real database.
+            
+            2. DEPENDENCY INVERSION: Services depend on abstractions (interfaces) rather than concrete classes.
+               This makes the code more flexible and follows SOLID principles.
+            
+            3. IMPLEMENTATION FLEXIBILITY: Could swap Entity Framework for Dapper, MongoDB, or web APIs
+               without changing service layer code, as long as the interface contract is maintained.
+            
+            4. DEPENDENCY INJECTION: The DI container can inject the appropriate implementation
+               (configured in Program.cs).
+            
+            While this pattern might add complexity for simple applications, it's industry standard and essential
+            for maintainable, testable enterprise applications.
+            </remarks>
+            <summary>
+            Repository interface for managing booking contract data operations.
+            Provides methods for CRUD operations and booking-specific queries.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Interfaces.IBookingRepository">
+            <summary>
+            Repository interface for managing booking data operations.
+            Includes specialized methods for availability checking and date range queries.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Interfaces.ICustomerRepository">
+            <summary>
+            Repository interface for managing customer data operations.
+            Includes email-based lookup for customer identification.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Repository.Interfaces.IFacilityRepository">
+            <summary>
+            Repository interface for managing facility data operations.
+            Includes active facility filtering for booking availability.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Services.BookingContractService">
+            <summary>
+            Manages booking contract lifecycle including creation modification, and status changes.
+            Handles automatic contract generation (can be created manually if that fails) and maintains snapshot data for legal purposes.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingContractService.CreateBasicForBookingAsync(System.Int32,System.String,System.Nullable{System.DateTime})">
+            <summary>
+            Creates a basic contract for an existing booking with default terms.
+            Generates unique contract number and captures snapshot data from related entities.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingContractService.PatchAsync(System.Int32,KonferenscentrumVast.DTO.BookingContractPatchDto)">
+            <summary>
+            Updates contract terms and amounts. Only allowed for Draft/Sent contracts.
+            Increments version number and updates timestamp on successful modification.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingContractService.MarkSentAsync(System.Int32)">
+            <summary>
+            Marks contract as sent to customer. Requires booking to be confirmed first.
+            Used to track when contracts have been delivered to customers.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingContractService.MarkSignedAsync(System.Int32,System.Nullable{System.DateTime})">
+            <summary>
+            Records contract signature with timestamp. Requires confirmed booking.
+            Once signed, contract cannot be modified and becomes legally binding.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingContractService.GenerateContractNumber(System.Int32)">
+            <summary>
+            Generates unique contract number using format: KCV-YYYY-NNNNNN
+            Where KCV is company prefix, YYYY is current year, NNNNNN is 6-digit booking ID
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingContractService.BuildDefaultTerms(KonferenscentrumVast.Models.Booking,KonferenscentrumVast.Models.Facility)">
+            <summary>
+            Builds standardized contract terms with booking details and standard policies.
+            Includes dates, participant count, pricing, and default cancellation terms.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Services.BookingService">
+            <summary>
+            Manages the complete booking lifecycle from creation to completion.
+            Handles availability checking, pricing calculations, and automatic contract generation.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingService.CreateBookingAsync(System.Int32,System.Int32,System.DateTime,System.DateTime,System.Int32,System.String)">
+            <summary>
+            Creates a new booking with validation and conflict checking.
+            Automatically calculates pricing and attempts to generate contract.
+            Verifies facility availability and capacity constraints.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingService.RescheduleBookingAsync(System.Int32,System.DateTime,System.DateTime)">
+            <summary>
+            Changes booking dates with availability checking and price recalculation.
+            Validates new dates don't conflict with other bookings (excluding current booking).
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.BookingService.CalculateTotalPrice(KonferenscentrumVast.Models.Facility,System.DateTime,System.DateTime)">
+            <summary>
+            Calculates total price based on facility's daily rate and booking duration.
+            Ensures minimum of 1 day billing even for same-day bookings.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Services.CustomerService">
+            <summary>
+            Manages customer data with email uniqueness enforcement and booking relationship validation.
+            Handles customer lifecycle operations with automatic email normalization.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.CustomerService.DeleteAsync(System.Int32)">
+            <summary>
+            Deletes customer with safety check for active bookings.
+            Prevents deletion if customer has pending or confirmed bookings.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.CustomerService.NormalizeEmail(System.String)">
+            <summary>
+            Normalizes email addresses to lowercase for consistent storage and comparison.
+            Ensures case-insensitive email uniqueness enforcement.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Services.FacilityService">
+            <summary>
+            Manages conference facility operations including creation, updates, and activation status.
+            Handles facility data validation and soft-delete through activation toggles.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.FacilityService.SetActiveAsync(System.Int32,System.Boolean)">
+            <summary>
+            Toggles facility active status for soft delete functionality.
+            Inactive facilities cannot be booked but preserve historical booking data.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Services.FacilityService.EnsureFacilityFields(System.String,System.String,System.String,System.String,System.Int32,System.Decimal)">
+            <summary>
+            Validates required facility fields and business constraints.
+            Ensures all mandatory data is present and values are within acceptable ranges.
+            </summary>
+        </member>
+        <!-- Badly formed XML comment ignored for member "T:KonferenscentrumVast.Validation.BookingValidator" -->
+        <member name="M:KonferenscentrumVast.Validation.BookingValidator.EnsureCreateIsValid(System.Int32,System.Int32,System.DateTime,System.DateTime,System.String,System.String,System.Int32)">
+            <summary>
+            Validates all data required to create a new booking.
+            Ensures facility, room, attendees, dates, and customer information are valid.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Validation.BookingValidator.EnsureUpdateWindowValid(System.DateTime,System.DateTime)">
+            <summary>
+            Validates date range when updating a booking's time window.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Validation.CustomerValidator">
+            <summary>
+            Validates customer information including name and email format.
+            </summary>
+        </member>
+        <member name="M:KonferenscentrumVast.Validation.CustomerValidator.ValidateCustomer(System.String,System.String)">
+            <summary>
+            Ensures customer has a valid name and optionally validates email if provided.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Validation.DateRangeValidator">
+            <summary>
+            Validates date ranges and ensures dates meet business requirements.
+            Prevents booking in the past and ensures logical date sequences.
+            </summary>
+        </member>
+        <member name="T:KonferenscentrumVast.Validation.EmailValidator">
+            <summary>
+            Validates email addresses using regex pattern based on RFC 5322 standards.
+            Handles null/empty emails and enforces reasonable length limits.
+            </summary>
+        </member>
+        <member name="F:KonferenscentrumVast.Validation.EmailValidator.Pattern">
+            <summary>
+            Compiled regex pattern for email validation based on RFC 5322 (Internet Message Format)
+            </summary>
+        </member>
+    </members>
+</doc>
