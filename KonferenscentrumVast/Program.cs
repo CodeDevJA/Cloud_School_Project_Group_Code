@@ -42,7 +42,7 @@ builder.Services.AddScoped<CustomerService>();
 
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection_Psql")));
 
 builder.Services.AddCors(opt =>
 {
