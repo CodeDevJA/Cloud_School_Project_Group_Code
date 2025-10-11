@@ -403,17 +403,3 @@ ASALocalRun/
 
 # Local History for Visual Studio
 .localhistory/
-
-# App settings
-appsettings.Development.json
-appsettings.Production.json
-appsettings.Local.json
-
-# User-specific files
-*.user
-*.aps
-
-# Build results
-[Dd]ebug/
-[Bb]in/
-[Oo]bj/
