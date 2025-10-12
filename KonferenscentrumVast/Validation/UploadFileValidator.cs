@@ -1,6 +1,7 @@
 using KonferenscentrumVast.DTOs;
 using KonferenscentrumVast.Exceptions;
 using KonferenscentrumVast.Models;
+using Microsoft.Extensions.Options;
 
 namespace KonferenscentrumVast.Validation
 {
@@ -13,9 +14,10 @@ namespace KonferenscentrumVast.Validation
     {
         private readonly AzureStorageConfig _config;
 
-        public UploadFileValidator(AzureStorageConfig config)
+        // FIXED: Change constructor to use IOptions<AzureStorageConfig>
+        public UploadFileValidator(IOptions<AzureStorageConfig> config)
         {
-            _config = config;
+            _config = config.Value; // FIXED: Use .Value to get the actual config
         }
 
         /// <summary>
