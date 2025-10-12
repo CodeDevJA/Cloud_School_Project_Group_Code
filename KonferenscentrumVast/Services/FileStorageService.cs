@@ -4,28 +4,22 @@ using KonferenscentrumVast.DTOs;
 using KonferenscentrumVast.Exceptions;
 using KonferenscentrumVast.Models;
 using KonferenscentrumVast.Validation;
+using KonferenscentrumVast.Repository.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace KonferenscentrumVast.Services
 {
-    /// <summary>
-    /// Service layer for file storage operations with Azure Blob Storage
-    /// Handles business logic for file upload, download, and deletion
-    /// GDPR: Ensures secure file handling and proper metadata management
-    /// </summary>
     public interface IFileStorageService
     {
         Task<FileUploadResponseDto> UploadFileAsync(FileUploadRequestDto request, string uploadedBy);
         Task<bool> DeleteFileAsync(string secureFileName);
         Task<Stream> DownloadFileAsync(string secureFileName);
         Task<bool> FileExistsAsync(string secureFileName);
+        Task<UploadFile?> GetFileMetadataAsync(string secureFileName); // FIXED: Make nullable
+        Task<List<UploadFile>> GetFilesForBookingAsync(int bookingId);
+        Task<List<UploadFile>> GetFilesForFacilityAsync(int facilityId);
     }
 
-    /// <summary>
-    /// Implementation of file storage service using Azure Blob Storage
-    /// Separates business logic from storage infrastructure details
-    /// Uses secure practices for all file operations
-    /// </summary>
     public class FileStorageService : IFileStorageService
     {
         private readonly AzureStorageConfig _storageConfig;
@@ -45,11 +39,6 @@ namespace KonferenscentrumVast.Services
             _fileStorageRepository = fileStorageRepository;
         }
 
-        /// <summary>
-        /// Main method for uploading files to Azure Blob Storage
-        /// Performs validation, secure filename generation, and metadata storage
-        /// GDPR: Uses secure filenames and tracks upload information
-        /// </summary>
         public async Task<FileUploadResponseDto> UploadFileAsync(FileUploadRequestDto request, string uploadedBy)
         {
             try
@@ -83,7 +72,7 @@ namespace KonferenscentrumVast.Services
                     FacilityId = request.FacilityId,
                     ContentType = request.File.ContentType,
                     UploadedBy = uploadedBy,
-                    FileHash = CalculateFileHash(request.File) // For integrity verification
+                    FileHash = CalculateFileHash(request.File)
                 };
 
                 // Save metadata to database via repository
@@ -107,22 +96,16 @@ namespace KonferenscentrumVast.Services
             }
             catch (UploadFileException ex)
             {
-                // Re-throw custom exceptions with proper context
                 _logger.LogWarning(ex, "File upload validation failed: {ErrorMessage}", ex.Message);
                 throw;
             }
             catch (Exception ex)
             {
-                // Handle unexpected errors and wrap in storage exception
                 _logger.LogError(ex, "Unexpected error during file upload for {FileName}", request.File.FileName);
                 throw new StorageException("File upload operation", ex);
             }
         }
 
-        /// <summary>
-        /// Deletes a file from Azure Blob Storage and updates metadata
-        /// GDPR: Supports right to be forgotten with proper audit trail
-        /// </summary>
         public async Task<bool> DeleteFileAsync(string secureFileName)
         {
             try
@@ -137,7 +120,7 @@ namespace KonferenscentrumVast.Services
                 if (fileMetadata == null)
                 {
                     _logger.LogWarning("File metadata not found for deletion: {SecureFileName}", secureFileName);
-                    throw new FileNotFoundException(secureFileName);
+                    throw new FileValidationException("File not found for deletion");
                 }
 
                 // Step 3: Mark file as deleted in database (soft delete for GDPR)
@@ -173,11 +156,6 @@ namespace KonferenscentrumVast.Services
             }
         }
 
-        /// <summary>
-        /// Downloads a file from Azure Blob Storage as a stream
-        /// Used for both display and download operations
-        /// Security: Validates file existence and access rights
-        /// </summary>
         public async Task<Stream> DownloadFileAsync(string secureFileName)
         {
             try
@@ -192,7 +170,7 @@ namespace KonferenscentrumVast.Services
                 if (fileMetadata == null || fileMetadata.IsDeleted)
                 {
                     _logger.LogWarning("File not found or already deleted: {SecureFileName}", secureFileName);
-                    throw new FileNotFoundException(secureFileName);
+                    throw new FileValidationException("File not found or has been deleted");
                 }
 
                 // Step 3: Download file from Azure Blob Storage
@@ -216,15 +194,10 @@ namespace KonferenscentrumVast.Services
             }
         }
 
-        /// <summary>
-        /// Checks if a file exists in Azure Blob Storage
-        /// Used for validation and existence checks before operations
-        /// </summary>
         public async Task<bool> FileExistsAsync(string secureFileName)
         {
             try
             {
-                // Check both database metadata and blob storage
                 var fileMetadata = await _fileStorageRepository.GetFileMetadataAsync(secureFileName);
                 if (fileMetadata == null || fileMetadata.IsDeleted)
                 {
@@ -240,46 +213,27 @@ namespace KonferenscentrumVast.Services
             }
         }
 
-        /// <summary>
-        /// Calculates a simple hash for file integrity verification
-        /// GDPR: Used to ensure file hasn't been tampered with
-        /// Note: For production, consider stronger hashing algorithms
-        /// </summary>
+        public async Task<UploadFile?> GetFileMetadataAsync(string secureFileName) // FIXED: Make nullable
+        {
+            return await _fileStorageRepository.GetFileMetadataAsync(secureFileName);
+        }
+
+        public async Task<List<UploadFile>> GetFilesForBookingAsync(int bookingId)
+        {
+            return await _fileStorageRepository.GetFilesForBookingAsync(bookingId);
+        }
+
+        public async Task<List<UploadFile>> GetFilesForFacilityAsync(int facilityId)
+        {
+            return await _fileStorageRepository.GetFilesForFacilityAsync(facilityId);
+        }
+
         private string CalculateFileHash(IFormFile file)
         {
             using var stream = file.OpenReadStream();
             using var sha256 = System.Security.Cryptography.SHA256.Create();
             var hashBytes = sha256.ComputeHash(stream);
             return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-        }
-
-        /// <summary>
-        /// Gets file metadata for a specific secure filename
-        /// Used by controllers to provide file information
-        /// </summary>
-        public async Task<UploadFile> GetFileMetadataAsync(string secureFileName)
-        {
-            return await _fileStorageRepository.GetFileMetadataAsync(secureFileName);
-        }
-
-        /// <summary>
-        /// Gets all files for a specific booking
-        /// Used to display all files related to a booking
-        /// GDPR: Only returns files that haven't been soft-deleted
-        /// </summary>
-        public async Task<List<UploadFile>> GetFilesForBookingAsync(int bookingId)
-        {
-            return await _fileStorageRepository.GetFilesForBookingAsync(bookingId);
-        }
-
-        /// <summary>
-        /// Gets all files for a specific facility
-        /// Used to display facility images and documents
-        /// GDPR: Only returns files that haven't been soft-deleted
-        /// </summary>
-        public async Task<List<UploadFile>> GetFilesForFacilityAsync(int facilityId)
-        {
-            return await _fileStorageRepository.GetFilesForFacilityAsync(facilityId);
         }
     }
 }

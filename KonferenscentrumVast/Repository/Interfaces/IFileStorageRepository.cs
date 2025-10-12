@@ -5,7 +5,6 @@ namespace KonferenscentrumVast.Repository.Interfaces
     /// <summary>
     /// Repository interface for file storage operations
     /// Abstracts the data access layer for file metadata and blob storage
-    /// Follows repository pattern for testability and maintainability
     /// </summary>
     public interface IFileStorageRepository
     {
@@ -16,7 +15,7 @@ namespace KonferenscentrumVast.Repository.Interfaces
         Task<bool> BlobExistsAsync(string secureFileName, string containerName);
 
         // Database Operations (File Metadata)
-        Task<UploadFile> GetFileMetadataAsync(string secureFileName);
+        Task<UploadFile?> GetFileMetadataAsync(string secureFileName); // FIXED: Add ? to make it nullable
         Task<UploadFile> SaveFileMetadataAsync(UploadFile uploadFile);
         Task<UploadFile> UpdateFileMetadataAsync(UploadFile uploadFile);
         Task<List<UploadFile>> GetFilesForBookingAsync(int bookingId);

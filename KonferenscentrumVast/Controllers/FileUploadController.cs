@@ -6,12 +6,6 @@ using System.Security.Claims;
 
 namespace KonferenscentrumVast.Controllers
 {
-    /// <summary>
-    /// API Controller for file upload operations
-    /// Handles HTTP requests for file upload, download, and management
-    /// Provides user confirmation and secure file access
-    /// GDPR: Ensures proper authentication and authorization for file operations
-    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class FileUploadController : ControllerBase
@@ -27,12 +21,6 @@ namespace KonferenscentrumVast.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Uploads a file to Azure Blob Storage
-        /// Accepts multipart form data with file and metadata
-        /// Returns user confirmation with secure file information
-        /// GDPR: Uses secure filenames and tracks uploader information
-        /// </summary>
         [HttpPost("upload")]
         public async Task<ActionResult<FileUploadResponseDto>> UploadFile([FromForm] FileUploadRequestDto request)
         {
@@ -98,11 +86,6 @@ namespace KonferenscentrumVast.Controllers
             }
         }
 
-        /// <summary>
-        /// Downloads a file from Azure Blob Storage
-        /// Returns file stream with proper content type for browser handling
-        /// Security: Validates file access and provides secure download
-        /// </summary>
         [HttpGet("download/{secureFileName}")]
         public async Task<IActionResult> DownloadFile(string secureFileName, [FromQuery] bool forceDownload = false)
         {
@@ -136,15 +119,10 @@ namespace KonferenscentrumVast.Controllers
                     return File(fileStream, contentType);
                 }
             }
-            catch (FileNotFoundException ex)
+            catch (FileValidationException ex) // FIXED: Use FileValidationException
             {
                 _logger.LogWarning(ex, "File not found for download: {SecureFileName}", secureFileName);
                 return NotFound(new { message = ex.UserFriendlyMessage });
-            }
-            catch (FileValidationException ex)
-            {
-                _logger.LogWarning(ex, "File validation failed for download: {SecureFileName}", secureFileName);
-                return BadRequest(new { message = ex.UserFriendlyMessage });
             }
             catch (Exception ex)
             {
@@ -153,11 +131,6 @@ namespace KonferenscentrumVast.Controllers
             }
         }
 
-        /// <summary>
-        /// Deletes a file from Azure Blob Storage and updates metadata
-        /// GDPR: Supports right to be forgotten with proper confirmation
-        /// Returns user confirmation of deletion
-        /// </summary>
         [HttpDelete("{secureFileName}")]
         public async Task<ActionResult<FileDeleteResponseDto>> DeleteFile(string secureFileName)
         {
@@ -187,19 +160,10 @@ namespace KonferenscentrumVast.Controllers
                     ));
                 }
             }
-            catch (FileNotFoundException ex)
+            catch (FileValidationException ex) // FIXED: Use FileValidationException
             {
                 _logger.LogWarning(ex, "File not found for deletion: {SecureFileName}", secureFileName);
                 return NotFound(new FileDeleteResponseDto(
-                    success: false,
-                    message: ex.UserFriendlyMessage,
-                    deletedFileName: secureFileName
-                ));
-            }
-            catch (FileValidationException ex)
-            {
-                _logger.LogWarning(ex, "File validation failed for deletion: {SecureFileName}", secureFileName);
-                return BadRequest(new FileDeleteResponseDto(
                     success: false,
                     message: ex.UserFriendlyMessage,
                     deletedFileName: secureFileName
@@ -216,11 +180,6 @@ namespace KonferenscentrumVast.Controllers
             }
         }
 
-        /// <summary>
-        /// Checks if a file exists in the system
-        /// Used for client-side validation and existence checks
-        /// Returns simple existence status
-        /// </summary>
         [HttpGet("exists/{secureFileName}")]
         public async Task<ActionResult> FileExists(string secureFileName)
         {
@@ -236,11 +195,6 @@ namespace KonferenscentrumVast.Controllers
             }
         }
 
-        /// <summary>
-        /// Gets all files for a specific booking
-        /// Used to display booking-related documents and images
-        /// GDPR: Only returns files that user has access to
-        /// </summary>
         [HttpGet("booking/{bookingId}")]
         public async Task<ActionResult<List<FileListResponseDto>>> GetFilesForBooking(int bookingId)
         {
@@ -252,14 +206,13 @@ namespace KonferenscentrumVast.Controllers
                 var response = files.Select(f => new FileListResponseDto
                 {
                     SecureFileName = f.SecureFileName,
-                    OriginalFileName = f.OriginalFileName,
+                    OriginalFileName = f.OriginalFileName ?? string.Empty,
                     FileType = f.FileType,
                     FileSize = f.FileSize,
                     FileExtension = f.FileExtension,
                     UploadedAt = f.UploadedAt,
                     BookingId = f.BookingId,
-                    FacilityId = f.FacilityId,
-                    Description = f.Description
+                    FacilityId = f.FacilityId
                 }).ToList();
 
                 return Ok(response);
@@ -271,11 +224,6 @@ namespace KonferenscentrumVast.Controllers
             }
         }
 
-        /// <summary>
-        /// Gets all files for a specific facility
-        /// Used to display facility images and related documents
-        /// Public access for facility information
-        /// </summary>
         [HttpGet("facility/{facilityId}")]
         public async Task<ActionResult<List<FileListResponseDto>>> GetFilesForFacility(int facilityId)
         {
@@ -287,14 +235,13 @@ namespace KonferenscentrumVast.Controllers
                 var response = files.Select(f => new FileListResponseDto
                 {
                     SecureFileName = f.SecureFileName,
-                    OriginalFileName = f.OriginalFileName,
+                    OriginalFileName = f.OriginalFileName ?? string.Empty,
                     FileType = f.FileType,
                     FileSize = f.FileSize,
                     FileExtension = f.FileExtension,
                     UploadedAt = f.UploadedAt,
                     BookingId = f.BookingId,
-                    FacilityId = f.FacilityId,
-                    Description = f.Description
+                    FacilityId = f.FacilityId
                 }).ToList();
 
                 return Ok(response);
@@ -306,17 +253,11 @@ namespace KonferenscentrumVast.Controllers
             }
         }
 
-        /// <summary>
-        /// Health check endpoint for file upload functionality
-        /// Verifies that Azure Blob Storage is accessible
-        /// Used for monitoring and diagnostics
-        /// </summary>
         [HttpGet("health")]
         public ActionResult HealthCheck()
         {
             try
             {
-                // Basic health check - in production, this would verify Azure connectivity
                 return Ok(new
                 {
                     status = "Healthy",
@@ -336,17 +277,11 @@ namespace KonferenscentrumVast.Controllers
             }
         }
 
-        /// <summary>
-        /// Gets the current user ID from authentication context
-        /// Used for audit trail and GDPR compliance
-        /// Returns "system" if no user is authenticated (for background operations)
-        /// </summary>
         private string GetCurrentUserId()
         {
-            // Get user identity from authentication context
             var userId = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
                       ?? User?.FindFirst("sub")?.Value
-                      ?? "system"; // Fallback for system operations
+                      ?? "system";
 
             _logger.LogDebug("Current user ID for file operation: {UserId}", userId);
             return userId;

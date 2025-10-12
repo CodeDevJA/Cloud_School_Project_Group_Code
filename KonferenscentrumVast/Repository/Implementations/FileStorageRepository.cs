@@ -8,17 +8,12 @@ using Microsoft.Extensions.Options;
 
 namespace KonferenscentrumVast.Repository.Implementations
 {
-    /// <summary>
-    /// Repository implementation for file storage operations
-    /// Handles Azure Blob Storage for files and PostgreSQL for metadata
-    /// Separates data access logic from business logic
-    /// </summary>
     public class FileStorageRepository : IFileStorageRepository
     {
         private readonly AzureStorageConfig _storageConfig;
         private readonly ApplicationDbContext _context;
         private readonly ILogger<FileStorageRepository> _logger;
-        private BlobServiceClient _blobServiceClient;
+        private BlobServiceClient _blobServiceClient = null!;
 
         public FileStorageRepository(
             IOptions<AzureStorageConfig> storageConfig,
@@ -31,10 +26,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             InitializeBlobServiceClient();
         }
 
-        /// <summary>
-        /// Initializes the Azure Blob Service client using connection string
-        /// Creates blob container if it doesn't exist
-        /// </summary>
         private void InitializeBlobServiceClient()
         {
             try
@@ -49,23 +40,15 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Uploads a file to Azure Blob Storage
-        /// Uses secure filename and sets proper content type
-        /// Returns the full URL of the uploaded blob
-        /// </summary>
         public async Task<string> UploadToBlobStorageAsync(IFormFile file, string secureFileName, string containerName)
         {
             try
             {
-                // Get blob container client and create container if it doesn't exist
                 var blobContainerClient = _blobServiceClient.GetBlobContainerClient(containerName);
                 await blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None);
 
-                // Get blob client for the specific file
                 var blobClient = blobContainerClient.GetBlobClient(secureFileName);
 
-                // Set blob upload options with content type
                 var blobUploadOptions = new BlobUploadOptions
                 {
                     HttpHeaders = new BlobHttpHeaders
@@ -74,7 +57,6 @@ namespace KonferenscentrumVast.Repository.Implementations
                     }
                 };
 
-                // Upload file stream to blob storage
                 using var fileStream = file.OpenReadStream();
                 var response = await blobClient.UploadAsync(fileStream, blobUploadOptions);
 
@@ -89,10 +71,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Deletes a file from Azure Blob Storage
-        /// Returns true if deletion was successful or file didn't exist
-        /// </summary>
         public async Task<bool> DeleteFromBlobStorageAsync(string secureFileName, string containerName)
         {
             try
@@ -100,7 +78,6 @@ namespace KonferenscentrumVast.Repository.Implementations
                 var blobContainerClient = _blobServiceClient.GetBlobContainerClient(containerName);
                 var blobClient = blobContainerClient.GetBlobClient(secureFileName);
 
-                // Delete blob if it exists
                 var response = await blobClient.DeleteIfExistsAsync();
 
                 _logger.LogDebug("File deletion from blob storage: {FileName} - Success: {Success}",
@@ -115,10 +92,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Downloads a file from Azure Blob Storage as a stream
-        /// Used for both file downloads and content delivery
-        /// </summary>
         public async Task<Stream> DownloadFromBlobStorageAsync(string secureFileName, string containerName)
         {
             try
@@ -126,7 +99,6 @@ namespace KonferenscentrumVast.Repository.Implementations
                 var blobContainerClient = _blobServiceClient.GetBlobContainerClient(containerName);
                 var blobClient = blobContainerClient.GetBlobClient(secureFileName);
 
-                // Download blob content to stream
                 var response = await blobClient.DownloadContentAsync();
 
                 _logger.LogDebug("File downloaded from blob storage: {FileName}", secureFileName);
@@ -140,10 +112,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Checks if a blob exists in Azure Blob Storage
-        /// Used for validation before operations
-        /// </summary>
         public async Task<bool> BlobExistsAsync(string secureFileName, string containerName)
         {
             try
@@ -160,11 +128,7 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Gets file metadata from PostgreSQL database by secure filename
-        /// Returns null if file not found or is soft-deleted
-        /// </summary>
-        public async Task<UploadFile> GetFileMetadataAsync(string secureFileName)
+        public async Task<UploadFile?> GetFileMetadataAsync(string secureFileName)
         {
             try
             {
@@ -179,10 +143,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Saves file metadata to PostgreSQL database
-        /// Creates new record with upload information
-        /// </summary>
         public async Task<UploadFile> SaveFileMetadataAsync(UploadFile uploadFile)
         {
             try
@@ -201,10 +161,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Updates existing file metadata in PostgreSQL database
-        /// Used for soft delete and metadata modifications
-        /// </summary>
         public async Task<UploadFile> UpdateFileMetadataAsync(UploadFile uploadFile)
         {
             try
@@ -223,10 +179,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Gets all non-deleted files for a specific booking
-        /// Used to display booking-related documents
-        /// </summary>
         public async Task<List<UploadFile>> GetFilesForBookingAsync(int bookingId)
         {
             try
@@ -243,10 +195,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Gets all non-deleted files for a specific facility
-        /// Used to display facility images and documents
-        /// </summary>
         public async Task<List<UploadFile>> GetFilesForFacilityAsync(int facilityId)
         {
             try
@@ -263,11 +211,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             }
         }
 
-        /// <summary>
-        /// Performs soft delete on file metadata
-        /// Marks file as deleted without removing from database
-        /// GDPR: Maintains audit trail while supporting right to be forgotten
-        /// </summary>
         public async Task<bool> SoftDeleteFileMetadataAsync(string secureFileName)
         {
             try
@@ -288,26 +231,6 @@ namespace KonferenscentrumVast.Repository.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to soft delete file metadata: {FileName}", secureFileName);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Gets all files (including deleted) for administrative purposes
-        /// Used for audit and GDPR compliance reporting
-        /// Should be restricted to admin users only
-        /// </summary>
-        public async Task<List<UploadFile>> GetAllFilesForAdminAsync()
-        {
-            try
-            {
-                return await _context.UploadFiles
-                    .OrderByDescending(f => f.UploadedAt)
-                    .ToListAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get all files for admin");
                 throw;
             }
         }
