@@ -405,4 +405,5 @@ ASALocalRun/
 .localhistory/
 
 # Secrets
+.env
 appsettings.Development.json
