@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Bruno_Kurs5Group_UploadFile",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

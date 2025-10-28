@@ -6,9 +6,14 @@ using KonferenscentrumVast.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
+// ADD THESE TWO LINES:
+using KonferenscentrumVast.Models;
+using KonferenscentrumVast.Validation;
 
+// ============================================================================
+// EXISTING CODE - No changes needed in this section
+// ============================================================================
 var builder = WebApplication.CreateBuilder(args);
-
 
 // Controllers + JSON (optional: guard against reference loops if any entity slips through)
 builder.Services.AddControllers();
@@ -23,10 +28,29 @@ builder.Services.AddSwaggerGen(c =>
     c.MapType<DateOnly>(() => new OpenApiSchema { Type = "string", Format = "date" });
     c.MapType<TimeOnly>(() => new OpenApiSchema { Type = "string", Format = "time" });
 
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    c.IncludeXmlComments(xmlPath);
+    // COMMENT OUT THESE LINES:
+    // var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    // var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    // c.IncludeXmlComments(xmlPath);
 });
+
+// ============================================================================
+// NEW CODE - File Upload Service Registrations
+// ============================================================================
+
+// Azure Storage Configuration - binds appsettings.json to AzureStorageConfig model
+builder.Services.Configure<AzureStorageConfig>(
+    builder.Configuration.GetSection("AzureStorage")
+);
+
+// File Upload Services Registration
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IFileStorageRepository, FileStorageRepository>();
+builder.Services.AddScoped<UploadFileValidator>();
+
+// ============================================================================
+// EXISTING CODE - No changes needed in this section
+// ============================================================================
 
 // Repositories
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -55,7 +79,7 @@ builder.Services.AddCors(opt =>
     });
     
     // Add for production
-    opt.AddDefaultPolicy(policy =>
+    opt.AddPolicy("default", policy =>
     {
         policy
               .AllowAnyOrigin()
@@ -65,9 +89,11 @@ builder.Services.AddCors(opt =>
 });
 
 // In app configuration
-
-
 builder.Services.AddApplicationInsightsTelemetry();
+
+// ============================================================================
+// APPLICATION BUILD - No changes needed in this section
+// ============================================================================
 
 var app = builder.Build();
 
@@ -84,7 +110,7 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    app.UseCors(); // Uses default policy
+    app.UseCors("default"); // Uses default policy
 }
 
 app.UseSwagger();

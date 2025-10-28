@@ -404,5 +404,11 @@ ASALocalRun/
 # Local History for Visual Studio
 .localhistory/
 
+# BrunoApiTesting file-versions
+BrunoApiTesting/BrunoCloudGroupProj/
+
 # Secrets
-appsettings.Development.json
+.env
+KonferenscentrumVast/appsettings.Development.json
+KonferenscentrumVast/appsettings.json
+KonferenscentrumVast/OriginalFilesFolder/

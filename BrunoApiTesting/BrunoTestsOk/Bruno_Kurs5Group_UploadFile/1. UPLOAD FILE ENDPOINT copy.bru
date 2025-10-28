@@ -1,0 +1,22 @@
+meta {
+  name: 1. UPLOAD FILE ENDPOINT copy
+  type: http
+  seq: 4
+}
+
+post {
+  url: https://confcenter-api-app-gzb7def0bxh2feb5.uksouth-01.azurewebsites.net/api/fileupload/upload
+  body: multipartForm
+  auth: inherit
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+body:multipart-form {
+  File: @file(C:\Users\ja_da\Documents\code\YH-TH_dotNET24_Kurser\Kurs-5_Molnbaserade-applikationer\Uppgifter\Uppg_Grupp\konferenscentrum.pdf)
+  FileType: contract @contentType(text/plain)
+  BookingId: 1 @contentType(text/plain)
+  FacilityId: 1 @contentType(text/plain)
+}

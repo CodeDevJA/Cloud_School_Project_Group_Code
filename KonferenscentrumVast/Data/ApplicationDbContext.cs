@@ -11,8 +11,14 @@ namespace KonferenscentrumVast.Data
         }
 
         public DbSet<Customer> Customers { get; set; }
+
         public DbSet<Facility> Facilities { get; set; }
+
         public DbSet<Booking> Bookings { get; set; }
+
         public DbSet<BookingContract> BookingContracts { get; set; }
+
+        // Additional "DbSet" for "UploadFile" (metadata)
+        public DbSet<UploadFile> UploadFiles { get; set; }
     }
 }

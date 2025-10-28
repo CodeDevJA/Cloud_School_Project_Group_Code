@@ -1,0 +1,22 @@
+meta {
+  name: 1. UPLOAD FILE ENDPOINT (AzureURL) copy
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:5227/api/fileupload/upload
+  body: multipartForm
+  auth: inherit
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+body:multipart-form {
+  File: @file(C:\Users\ja_da\Documents\code\YH-TH_dotNET24_Kurser\Kurs-5_Molnbaserade-applikationer\Uppgifter\Uppg_Grupp\konferenscentrum.pdf)
+  FileType: contract @contentType(text/plain)
+  BookingId: 1 @contentType(text/plain)
+  FacilityId: 1 @contentType(text/plain)
+}

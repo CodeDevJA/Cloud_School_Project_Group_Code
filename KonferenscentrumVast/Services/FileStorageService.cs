@@ -1,0 +1,239 @@
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using KonferenscentrumVast.DTOs;
+using KonferenscentrumVast.Exceptions;
+using KonferenscentrumVast.Models;
+using KonferenscentrumVast.Validation;
+using KonferenscentrumVast.Repository.Interfaces;
+using Microsoft.Extensions.Options;
+
+namespace KonferenscentrumVast.Services
+{
+    public interface IFileStorageService
+    {
+        Task<FileUploadResponseDto> UploadFileAsync(FileUploadRequestDto request, string uploadedBy);
+        Task<bool> DeleteFileAsync(string secureFileName);
+        Task<Stream> DownloadFileAsync(string secureFileName);
+        Task<bool> FileExistsAsync(string secureFileName);
+        Task<UploadFile?> GetFileMetadataAsync(string secureFileName); // FIXED: Make nullable
+        Task<List<UploadFile>> GetFilesForBookingAsync(int bookingId);
+        Task<List<UploadFile>> GetFilesForFacilityAsync(int facilityId);
+    }
+
+    public class FileStorageService : IFileStorageService
+    {
+        private readonly AzureStorageConfig _storageConfig;
+        private readonly UploadFileValidator _validator;
+        private readonly ILogger<FileStorageService> _logger;
+        private readonly IFileStorageRepository _fileStorageRepository;
+
+        public FileStorageService(
+            IOptions<AzureStorageConfig> storageConfig,
+            UploadFileValidator validator,
+            ILogger<FileStorageService> logger,
+            IFileStorageRepository fileStorageRepository)
+        {
+            _storageConfig = storageConfig.Value;
+            _validator = validator;
+            _logger = logger;
+            _fileStorageRepository = fileStorageRepository;
+        }
+
+        public async Task<FileUploadResponseDto> UploadFileAsync(FileUploadRequestDto request, string uploadedBy)
+        {
+            try
+            {
+                _logger.LogInformation("Starting file upload process for {FileName}", request.File.FileName);
+
+                // Step 1: Validate the upload request
+                _validator.ValidateUploadRequest(request);
+
+                // Step 2: Generate secure filename (GDPR compliant)
+                var secureFileName = _validator.GenerateSecureFileName(request.File.FileName, request.FileType);
+
+                // Step 3: Upload file to Azure Blob Storage via repository
+                var fileUrl = await _fileStorageRepository.UploadToBlobStorageAsync(
+                    request.File,
+                    secureFileName,
+                    _storageConfig.ContainerName
+                );
+
+                // Step 4: Create file metadata record in database
+                var uploadFile = new UploadFile
+                {
+                    SecureFileName = secureFileName,
+                    OriginalFileName = request.File.FileName,
+                    FileType = request.FileType,
+                    FileSize = request.File.Length,
+                    FileExtension = Path.GetExtension(request.File.FileName).ToLowerInvariant(),
+                    StorageUrl = fileUrl,
+                    ContainerName = _storageConfig.ContainerName,
+                    BookingId = request.BookingId,
+                    FacilityId = request.FacilityId,
+                    ContentType = request.File.ContentType,
+                    UploadedBy = uploadedBy,
+                    FileHash = CalculateFileHash(request.File)
+                };
+
+                // Save metadata to database via repository
+                await _fileStorageRepository.SaveFileMetadataAsync(uploadFile);
+
+                // Step 5: Log successful upload and return response
+                _logger.LogInformation(
+                    "File uploaded successfully: {SecureFileName} (Original: {OriginalFileName})",
+                    secureFileName,
+                    request.File.FileName
+                );
+
+                return new FileUploadResponseDto(
+                    success: true,
+                    message: "File uploaded successfully and is now securely stored",
+                    secureFileName: secureFileName,
+                    fileUrl: fileUrl,
+                    fileSize: request.File.Length,
+                    fileType: request.FileType
+                );
+            }
+            catch (UploadFileException ex)
+            {
+                _logger.LogWarning(ex, "File upload validation failed: {ErrorMessage}", ex.Message);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during file upload for {FileName}", request.File.FileName);
+                throw new StorageException("File upload operation", ex);
+            }
+        }
+
+        public async Task<bool> DeleteFileAsync(string secureFileName)
+        {
+            try
+            {
+                _logger.LogInformation("Starting file deletion process for {SecureFileName}", secureFileName);
+
+                // Step 1: Validate deletion request
+                _validator.ValidateDeleteRequest(secureFileName);
+
+                // Step 2: Get file metadata from database
+                var fileMetadata = await _fileStorageRepository.GetFileMetadataAsync(secureFileName);
+                if (fileMetadata == null)
+                {
+                    _logger.LogWarning("File metadata not found for deletion: {SecureFileName}", secureFileName);
+                    throw new FileValidationException("File not found for deletion");
+                }
+
+                // Step 3: Mark file as deleted in database (soft delete for GDPR)
+                fileMetadata.MarkAsDeleted();
+                await _fileStorageRepository.UpdateFileMetadataAsync(fileMetadata);
+
+                // Step 4: Delete actual file from Azure Blob Storage
+                var deletionResult = await _fileStorageRepository.DeleteFromBlobStorageAsync(
+                    secureFileName,
+                    _storageConfig.ContainerName
+                );
+
+                if (deletionResult)
+                {
+                    _logger.LogInformation("File deleted successfully: {SecureFileName}", secureFileName);
+                }
+                else
+                {
+                    _logger.LogWarning("File deletion may have failed: {SecureFileName}", secureFileName);
+                }
+
+                return deletionResult;
+            }
+            catch (UploadFileException ex)
+            {
+                _logger.LogWarning(ex, "File deletion validation failed: {ErrorMessage}", ex.Message);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during file deletion for {SecureFileName}", secureFileName);
+                throw new StorageException("File deletion operation", ex);
+            }
+        }
+
+        public async Task<Stream> DownloadFileAsync(string secureFileName)
+        {
+            try
+            {
+                _logger.LogInformation("Starting file download process for {SecureFileName}", secureFileName);
+
+                // Step 1: Validate download request
+                _validator.ValidateDownloadRequest(secureFileName);
+
+                // Step 2: Check if file exists in database (not deleted)
+                var fileMetadata = await _fileStorageRepository.GetFileMetadataAsync(secureFileName);
+                if (fileMetadata == null || fileMetadata.IsDeleted)
+                {
+                    _logger.LogWarning("File not found or already deleted: {SecureFileName}", secureFileName);
+                    throw new FileValidationException("File not found or has been deleted");
+                }
+
+                // Step 3: Download file from Azure Blob Storage
+                var fileStream = await _fileStorageRepository.DownloadFromBlobStorageAsync(
+                    secureFileName,
+                    _storageConfig.ContainerName
+                );
+
+                _logger.LogInformation("File downloaded successfully: {SecureFileName}", secureFileName);
+                return fileStream;
+            }
+            catch (UploadFileException ex)
+            {
+                _logger.LogWarning(ex, "File download validation failed: {ErrorMessage}", ex.Message);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during file download for {SecureFileName}", secureFileName);
+                throw new StorageException("File download operation", ex);
+            }
+        }
+
+        public async Task<bool> FileExistsAsync(string secureFileName)
+        {
+            try
+            {
+                var fileMetadata = await _fileStorageRepository.GetFileMetadataAsync(secureFileName);
+                if (fileMetadata == null || fileMetadata.IsDeleted)
+                {
+                    return false;
+                }
+
+                return await _fileStorageRepository.BlobExistsAsync(secureFileName, _storageConfig.ContainerName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking file existence for {SecureFileName}", secureFileName);
+                return false;
+            }
+        }
+
+        public async Task<UploadFile?> GetFileMetadataAsync(string secureFileName) // FIXED: Make nullable
+        {
+            return await _fileStorageRepository.GetFileMetadataAsync(secureFileName);
+        }
+
+        public async Task<List<UploadFile>> GetFilesForBookingAsync(int bookingId)
+        {
+            return await _fileStorageRepository.GetFilesForBookingAsync(bookingId);
+        }
+
+        public async Task<List<UploadFile>> GetFilesForFacilityAsync(int facilityId)
+        {
+            return await _fileStorageRepository.GetFilesForFacilityAsync(facilityId);
+        }
+
+        private string CalculateFileHash(IFormFile file)
+        {
+            using var stream = file.OpenReadStream();
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var hashBytes = sha256.ComputeHash(stream);
+            return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+        }
+    }
+}

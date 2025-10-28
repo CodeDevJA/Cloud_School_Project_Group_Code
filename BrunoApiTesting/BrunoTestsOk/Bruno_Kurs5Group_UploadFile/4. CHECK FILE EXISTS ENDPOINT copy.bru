@@ -1,0 +1,15 @@
+meta {
+  name: 4. CHECK FILE EXISTS ENDPOINT copy
+  type: http
+  seq: 8
+}
+
+get {
+  url: http://localhost:5227/api/fileupload/exists/{secureFileName}?bookingId
+  body: none
+  auth: inherit
+}
+
+params:query {
+  bookingId: 
+}

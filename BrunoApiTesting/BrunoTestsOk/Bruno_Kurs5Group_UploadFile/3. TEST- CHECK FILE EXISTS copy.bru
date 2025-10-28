@@ -1,0 +1,15 @@
+meta {
+  name: 3. TEST: CHECK FILE EXISTS copy
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://localhost:5227/api/fileupload/exists/{secureFileName}?secureFileName
+  body: none
+  auth: inherit
+}
+
+params:query {
+  secureFileName: 
+}
